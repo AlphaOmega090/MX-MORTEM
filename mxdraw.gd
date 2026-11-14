@@ -19,6 +19,12 @@ static func eye_color(kind: String) -> Color:
 			return Color(1.0, 1.0, 1.0)
 		"kabob":
 			return Color(1.0, 0.35, 0.05)
+		"hush":
+			return Color(0.8, 0.9, 1.0)
+		"tick":
+			return Color(1.0, 0.85, 0.2)
+		"x":
+			return Color(0.3, 1.0, 1.0)
 		"aagar":
 			return Color(0.4, 0.8, 1.0)
 	return Color(1.0, 0.8, 0.4)
@@ -33,6 +39,8 @@ static func draw_eyes(ci: CanvasItem, kind: String, c: Vector2, s: float, al: fl
 
 static func draw_mx(ci: CanvasItem, kind: String, c: Vector2, s: float, al: float, extra: float, t: float) -> void:
 	var w := maxf(1.0, s * 0.07)
+	if draw_extra(ci, kind, c, s, al, t):
+		return
 	match kind:
 		"omega":
 			var body := Color(0.38, 0.1, 0.55, al)
@@ -96,3 +104,44 @@ static func draw_mx(ci: CanvasItem, kind: String, c: Vector2, s: float, al: floa
 			ci.draw_circle(P(c, s, 0.35, -0.2), s * 0.14, Color(0, 0, 0, al))
 			ci.draw_circle(P(c, s, 0, 0.1), s * 0.14, Color(0.1, 0.05, 0.05, al))
 			ci.draw_arc(P(c, s, 0, 0.15), s * 0.4, PI * 0.15, PI * 0.85, 12, Color(0.1, 0.05, 0.05, al), w)
+
+
+static func draw_extra(ci: CanvasItem, kind: String, c: Vector2, s: float, al: float, t: float) -> bool:
+	var w := maxf(1.0, s * 0.07)
+	if kind == "x":
+		for i in range(6):
+			var a0 := TAU * i / 6.0 + t * 0.8
+			ci.draw_arc(c, s * 1.45, a0, a0 + 0.55, 8, Color(0.3, 0.95, 0.95, al * 0.7), maxf(2.0, s * 0.08))
+		ci.draw_circle(c, s, Color(0.07, 0.09, 0.17, al))
+		var off := Vector2(sin(t * 17.0) * s * 0.07, 0.0)
+		var wd := maxf(3.0, s * 0.2)
+		ci.draw_line(P(c, s, -0.7, -0.7) + off, P(c, s, 0.7, 0.7) + off, Color(1.0, 0.2, 0.7, al * 0.55), wd)
+		ci.draw_line(P(c, s, 0.7, -0.7) + off, P(c, s, -0.7, 0.7) + off, Color(1.0, 0.2, 0.7, al * 0.55), wd)
+		ci.draw_line(P(c, s, -0.7, -0.7), P(c, s, 0.7, 0.7), Color(0.3, 1.0, 1.0, al), wd)
+		ci.draw_line(P(c, s, 0.7, -0.7), P(c, s, -0.7, 0.7), Color(0.3, 1.0, 1.0, al), wd)
+		ci.draw_circle(c, s * 0.14, Color(1, 1, 1, al))
+		return true
+	if kind == "hush":
+		ci.draw_circle(c, s, Color(0.82, 0.86, 0.9, al))
+		ci.draw_circle(P(c, s, -0.38, -0.2), s * 0.22, Color(0, 0, 0, al))
+		ci.draw_circle(P(c, s, 0.38, -0.2), s * 0.22, Color(0, 0, 0, al))
+		ci.draw_line(P(c, s, -0.38, -0.0), P(c, s, -0.42, 0.7), Color(0.1, 0.1, 0.12, al), w)
+		ci.draw_line(P(c, s, 0.38, -0.0), P(c, s, 0.42, 0.7), Color(0.1, 0.1, 0.12, al), w)
+		ci.draw_line(P(c, s, -0.3, 0.5), P(c, s, 0.3, 0.5), Color(0.15, 0.15, 0.18, al), w)
+		for i in range(5):
+			var x := -0.24 + i * 0.12
+			ci.draw_line(P(c, s, x, 0.42), P(c, s, x, 0.58), Color(0.15, 0.15, 0.18, al), w)
+		return true
+	if kind == "tick":
+		for i in range(10):
+			var a := TAU * i / 10.0 + t * 1.5
+			var d := Vector2.from_angle(a)
+			ci.draw_line(c + d * s * 0.95, c + d * s * 1.3, Color(0.7, 0.55, 0.1, al), maxf(2.0, s * 0.22))
+		ci.draw_circle(c, s, Color(0.95, 0.8, 0.15, al))
+		ci.draw_circle(P(c, s, 0, -0.05), s * 0.55, Color(1, 1, 1, al))
+		ci.draw_circle(P(c, s, 0, -0.05), s * 0.26, Color(0.8, 0.05, 0.05, al))
+		ci.draw_circle(P(c, s, 0, -0.05), s * 0.1, Color(0, 0, 0, al))
+		var ha := t * 6.0
+		ci.draw_line(P(c, s, 0, 0.55), P(c, s, 0, 0.55) + Vector2.from_angle(ha) * s * 0.3, Color(0.2, 0.1, 0, al), w)
+		return true
+	return false

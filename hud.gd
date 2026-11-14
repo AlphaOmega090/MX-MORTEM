@@ -25,7 +25,16 @@ func objective() -> String:
 			return "Find the VHS tapes (%d/%d) - hold E to pull them in" % [g.tapes_got, g.ch.tapes.size()]
 		return "The exit is unsealed - reach the green door"
 	if g.chase_mode:
-		return "RUN! Reach the exit with Allas!"
+		for lv in g.levers:
+			if (not lv.final) and (not lv.done):
+				return "RUN! Hold E at the lever to open the gate"
+		if not g.trap_done:
+			return "RUN! Reach the exit hall and hold E at the shutter lever"
+		return "Reach the exit!"
+	if g.ch.has("fuses") and not g.has_key:
+		if g.fuses_got < g.ch.fuses.size():
+			return "Find the fuses (%d/%d) - hold E to pull them in" % [g.fuses_got, g.ch.fuses.size()]
+		return "Put the fuses in the fuse box - press E next to it"
 	if not g.has_key:
 		return "Find the keycard - hold E to pull it in"
 	if g.grid[g.door_tile.y][g.door_tile.x] == 2:
@@ -74,6 +83,9 @@ func _draw() -> void:
 			center_text("Thanks for playing MX Mortem.", vs.y * 0.5, 22, Color(0.9, 0.9, 0.9))
 			center_text("ENTER / tap - back to title", vs.y * 0.9, 16, Color(0.6, 0.6, 0.6))
 			return
+		"cutscene":
+			_draw_cutscene(vs, f)
+			return
 		"jumpscare":
 			var sh := Vector2(randf_range(-18, 18), randf_range(-18, 18))
 			draw_rect(Rect2(Vector2.ZERO, vs), Color(0.25 + 0.2 * randf(), 0, 0))
@@ -107,6 +119,8 @@ func _draw_play(vs: Vector2, f: Font) -> void:
 	var inv := "Inventory: "
 	if g.has_key:
 		inv += "[Keycard] "
+	if g.ch.has("fuses"):
+		inv += "[Fuses %d/%d] " % [g.fuses_got, g.ch.fuses.size()]
 	inv += "[Tapes %d/%d]" % [g.tapes_got, g.ch.tapes.size()]
 	draw_string(f, Vector2(16, 108), inv, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.9, 0.9, 0.9))
 
@@ -128,11 +142,21 @@ func _draw_play(vs: Vector2, f: Font) -> void:
 			"WASD move | Shift sprint | Mouse aim | F light | E hands | Click laser | TAB/C cameras | R retry",
 			HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.7, 0.7, 0.7))
 
+	if g.DEBUG and not g.touch_ui:
+		draw_string(f, Vector2(vs.x - 330, 24), "DEBUG: 1/2/3 chapter | N night | I invincible%s" % (" (ON)" if g.invincible else ""),
+			HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(1, 1, 0.4, 0.7))
 	if g.msg_t > 0.0:
 		draw_string(f, Vector2(0, vs.y - 90), g.msg, HORIZONTAL_ALIGNMENT_CENTER, vs.x, 20, Color.WHITE)
 	if g.sub_t > 0.0:
 		draw_rect(Rect2(vs.x * 0.2, vs.y - 66, vs.x * 0.6, 30), Color(0, 0, 0, 0.6))
 		draw_string(f, Vector2(0, vs.y - 45), g.sub_text, HORIZONTAL_ALIGNMENT_CENTER, vs.x, 18, g.sub_col)
+
+	if g.glitch_t > 0.0:
+		for i in range(14):
+			var gy := randf() * vs.y
+			var gx := randf_range(-30.0, 30.0)
+			var gc := Color(0.2, 1.0, 1.0, 0.18) if i % 2 == 0 else Color(1.0, 0.2, 0.7, 0.18)
+			draw_rect(Rect2(gx, gy, vs.x, randf_range(3.0, 16.0)), gc)
 
 	if g.cam_on:
 		_draw_cameras(vs, f)
@@ -161,7 +185,7 @@ func _draw_cameras(vs: Vector2, f: Font) -> void:
 	var size := Vector2(g.W * cell, g.H * cell)
 	var o := (vs - size) * 0.5
 	draw_rect(Rect2(o - Vector2(10, 30), size + Vector2(20, 44)), Color(0, 0.05, 0, 0.92))
-	draw_string(f, o - Vector2(0, 12), "CAM 01 - FUNWORKS  (Omega is not on cameras)", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.4, 1.0, 0.5))
+	draw_string(f, o - Vector2(0, 12), "CAM 01 - FACILITY  (Omega is not on cameras)", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.4, 1.0, 0.5))
 	for ty in range(g.H):
 		for tx in range(g.W):
 			if g.grid[ty][tx] != 1:
@@ -194,3 +218,100 @@ func _draw_touch(vs: Vector2, f: Font) -> void:
 		var hint := Vector2(vs.x * 0.14, vs.y - 130.0)
 		draw_arc(hint, 60.0, 0.0, TAU, 32, Color(1, 1, 1, 0.2), 2.0)
 		draw_string(f, hint + Vector2(-60, 5), "MOVE", HORIZONTAL_ALIGNMENT_CENTER, 120.0, 14, Color(1, 1, 1, 0.35))
+
+
+func _draw_cutscene(vs: Vector2, f: Font) -> void:
+	var beat: Dictionary = g.cut_beats()[g.cut_i]
+	var t: float = g.cut_t
+	draw_scene(beat.scene, t, vs, f)
+	# fade in and out per beat
+	var fade := minf(1.0, minf(t / 0.5, (beat.d - t) / 0.5))
+	if fade < 1.0:
+		draw_rect(Rect2(Vector2.ZERO, vs), Color(0, 0, 0, 1.0 - fade))
+	# letterbox + caption
+	draw_rect(Rect2(0, 0, vs.x, vs.y * 0.1), Color.BLACK)
+	draw_rect(Rect2(0, vs.y * 0.82, vs.x, vs.y * 0.18), Color.BLACK)
+	var text: String = beat.text
+	var shown := mini(text.length(), int(t * 32.0))
+	var col := Color(0.95, 0.95, 0.95)
+	if text.begins_with("OMEGA"):
+		col = Color(0.8, 0.45, 1.0)
+	elif text.begins_with("X:"):
+		col = Color(0.3, 0.95, 0.95)
+	draw_multiline_string(f, Vector2(vs.x * 0.12, vs.y * 0.88), text.substr(0, shown), HORIZONTAL_ALIGNMENT_CENTER, vs.x * 0.76, 24, 2, col)
+	draw_string(f, Vector2(0, vs.y - 12), "ENTER / tap: next", HORIZONTAL_ALIGNMENT_CENTER, vs.x, 13, Color(0.5, 0.5, 0.5))
+
+
+func _rnd(i: float) -> float:
+	return fposmod(sin(i * 12.9898) * 43758.5453, 1.0)
+
+
+func draw_scene(name: String, t: float, vs: Vector2, f: Font) -> void:
+	draw_rect(Rect2(Vector2.ZERO, vs), Color(0.02, 0.02, 0.04))
+	var cx := vs.x * 0.5
+	match name:
+		"facility":
+			var bw := vs.x * 0.62
+			var bx := vs.x * 0.19
+			var by := vs.y * 0.28
+			draw_rect(Rect2(bx, by, bw, vs.y * 0.52), Color(0.06, 0.07, 0.1))
+			for r in range(5):
+				for c in range(11):
+					var on := sin(float(r * 31 + c * 17) + t * (0.6 + (c % 3) * 0.4)) > -0.3
+					var wc := Color(1.0, 0.85, 0.4, 0.9) if on else Color(0.1, 0.1, 0.13)
+					draw_rect(Rect2(bx + 24 + c * ((bw - 48.0) / 11.0), by + 28 + r * 56, 30, 30), wc)
+			draw_rect(Rect2(0, vs.y * 0.8, vs.x, vs.y * 0.2), Color(0.04, 0.04, 0.06))
+			draw_string(f, Vector2(bx, by - 18), "MX INDUSTRIES", HORIZONTAL_ALIGNMENT_CENTER, bw, 44, Color(0.9, 0.15, 0.15, 0.7 + 0.3 * sin(t * 4.0)))
+		"corridor":
+			var vp := Vector2(cx, vs.y * 0.45)
+			for i in range(9):
+				var k := 1.0 - i * 0.11
+				var hw := vs.x * 0.45 * k
+				var hh := vs.y * 0.4 * k
+				var fl := 0.5 + 0.5 * sin(t * 9.0 + i * 1.7)
+				var lc := Color(0.25, 0.28, 0.35, 0.8) if (i % 2 == 0 or fl > 0.5) else Color(0.08, 0.09, 0.12, 0.8)
+				draw_rect(Rect2(vp.x - hw, vp.y - hh, hw * 2.0, hh * 2.0), lc, false, 3.0)
+			draw_line(Vector2(0, vs.y), vp, Color(0.2, 0.22, 0.28), 3.0)
+			draw_line(Vector2(vs.x, vs.y), vp, Color(0.2, 0.22, 0.28), 3.0)
+			if t > 1.2:
+				MXD.draw_mx(self, "omega", vp, 8.0 + (t - 1.2) * 10.0, minf(0.9, (t - 1.2) * 0.5), 0.0, t)
+		"eyes":
+			var kinds := ["omega", "kabob", "aagar", "x", "snicker", "hush", "tick"]
+			for i in range(14):
+				var kx := _rnd(i * 3.1) * vs.x
+				var ky := vs.y * 0.15 + _rnd(i * 7.7) * vs.y * 0.65
+				var vis := clampf(sin(t * 1.6 + i * 2.3) * 2.0, 0.0, 1.0)
+				MXD.draw_eyes(self, kinds[i % kinds.size()], Vector2(kx, ky), 24.0, vis)
+		"omega":
+			MXD.draw_mx(self, "omega", Vector2(cx, vs.y * 0.5), 150.0 + t * 18.0, minf(1.0, t * 0.7), 0.0, t)
+		"x":
+			var xs := 150.0 + sin(t * 3.0) * 6.0
+			MXD.draw_mx(self, "x", Vector2(cx, vs.y * 0.5), xs, 1.0, 0.0, t)
+			for i in range(7):
+				var gy := _rnd(floor(t * 8.0) + i * 5.0) * vs.y
+				var gc := Color(0.2, 1.0, 1.0, 0.2) if i % 2 == 0 else Color(1.0, 0.2, 0.7, 0.2)
+				draw_rect(Rect2(randf_range(-40.0, 40.0), gy, vs.x, randf_range(4.0, 20.0)), gc)
+		"intercom":
+			draw_rect(Rect2(cx - 150, vs.y * 0.25, 300, 260), Color(0.12, 0.13, 0.16))
+			draw_rect(Rect2(cx - 150, vs.y * 0.25, 300, 260), Color(0.35, 0.37, 0.42), false, 4.0)
+			for r in range(6):
+				for c in range(8):
+					draw_circle(Vector2(cx - 105 + c * 30, vs.y * 0.25 + 40 + r * 30), 5.0, Color(0.05, 0.05, 0.07))
+			for i in range(40):
+				var ah := 4.0 + absf(sin(t * 11.0 + i * 0.7)) * 40.0
+				draw_line(Vector2(cx - 195 + i * 10, vs.y * 0.72 - ah), Vector2(cx - 195 + i * 10, vs.y * 0.72 + ah), Color(0.8, 0.45, 1.0, 0.7), 3.0)
+		"door":
+			for i in range(10):
+				draw_rect(Rect2(cx - 120 - i * 14, vs.y * 0.18, 240 + i * 28, vs.y * 0.6), Color(1.0, 0.95, 0.8, 0.05 + 0.02 * i))
+			draw_rect(Rect2(cx - 90, vs.y * 0.22, 180, vs.y * 0.56), Color(1.0, 0.97, 0.85))
+			var sway := sin(t * 1.5) * 4.0
+			draw_circle(Vector2(cx - 40 + sway, vs.y * 0.52), 22.0, Color(0.02, 0.02, 0.03))
+			draw_rect(Rect2(cx - 58 + sway, vs.y * 0.56, 36, 110), Color(0.02, 0.02, 0.03))
+			draw_circle(Vector2(cx + 30 - sway, vs.y * 0.54), 20.0, Color(0.02, 0.02, 0.03))
+			draw_rect(Rect2(cx + 12 - sway, vs.y * 0.58, 36, 100), Color(0.02, 0.02, 0.03))
+		"shutter":
+			MXD.draw_mx(self, "omega", Vector2(cx, vs.y * 0.5), 140.0, 0.8, 0.0, t)
+			var sy := minf(vs.y * 0.82, t * vs.y * 1.2) 
+			draw_rect(Rect2(0, vs.y * 0.1, vs.x, sy - vs.y * 0.1), Color(0.5, 0.52, 0.58))
+			for i in range(int(sy / 34.0)):
+				draw_rect(Rect2(0, vs.y * 0.1 + i * 34.0, vs.x, 4), Color(0.2, 0.21, 0.26))
